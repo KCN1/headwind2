@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>headwind</title>
+    <style>
+        header {background-color: #ccffee; padding: 0.5rem;}
+        th,td {text-align: right; padding: 0.25ch;}
+        tr:nth-child(odd) {background-color: whitesmoke;}
+        body {font-family: "Open Sans", Helvetica, Verdana, Arial, sans-serif;}
+        img {height: 5ch; object-fit: cover; vertical-align: middle; margin: -20%; filter: brightness(75%) contrast(150%);}
+        svg {height: 2.2ch; vertical-align: bottom;}
+        table {table-layout: auto; max-width: 100ch; border-collapse: collapse; margin-top: 3rem;}
+        #coords span {display: inline-block;}
+        .date {text-align: right; vertical-align: top; background-color: white; padding-right: 1ch; font-size: 1.2rem}
+        .weatherCode {text-align: center;}
+        .tableHeader {font-size: 0.9rem;}
+        .tableHeader th {padding: 0.3rem;}
+        @media (max-width: 799px) {
+            .wind2, .wind3, .wind2h {display: none;}
+            .date {padding-right: 0.5ch; font-size: 1rem;}
+        }
+    </style>
+</head>
+<body>
+<header>
+<div align='center'><b>
+<form style='display: inline' id='coords' name='coords' onsubmit='changeParams(event)'>Coordinates:
+    <input id='lat' name='lat' value=56 size=4>
+    <input id='lon' name='lon' value=44  size=4>
+ ┃ Elevation: 
+    <input id='elev' size=4 disabled>
+ ┃ 
+<span>Level:
+<select id='lev' name='lev'>
+    <option value='950hPa'>950mb (~500m ASL)</option>
+    <option value='925hPa' selected>925mb (~750m ASL)</option>
+    <option value='900hPa'>900mb (~1000m ASL)</option>
+    <option value='850hPa'>850mb (~1500m ASL)</option>
+    <option value='800hPa'>800mb (~2000m ASL)</option>
+</select> ┃ </span>
+<span>Model:
+<select id='model' name='model'>
+    <option value='gfs_seamless' selected>GFS 0.11-0.25°</option>
+    <option value='ecmwf_ifs025'>ECMWF 0.25°</option>
+    <option value='icon_seamless'>ICON 0.1°</option>
+    <option value='ukmo_seamless'>UK Met 0.09°</option>
+    <option value='meteofrance_seamless'>Met France 0.25°</option>
+</select> ┃ </span>
+<span>
+    1h
+    <input type="checkbox" name="hly" id="hly">
+    <button type='submit'>Submit</button>
+    <button type='reset'>Reset</button>
+</span>
+</form>
+</b></div>
+<div hidden id='someshit'></div>
+</header>
+<main>
+<div align='center' max-width='device-width'>
+<table>
+    <colgroup>
+        <col width="1%">
+        <col width="2%">
+        <col width="2%">
+        <col width="1%">
+        <col width="3.5%">
+        <col width="4%">
+        <col width="4%">
+        <col width="3%">
+        <col width="2.5%">
+        <col width="2%">
+    </colgroup>
+    <tbody id="mainTable">
+        <tr class="tableHeader">
+            <th hidden>date&time (ISO)</th>
+            <th colspan=2 style='text-align: right'>date ┃ time (<span id='tzone'>GMT</span>)&nbsp;</th>
+            <th colspan=2>weather ┃ t&nbsp;[°C]</th>
+            <th style='text-align:right'>wind [m/s]</th>
+            <th class='wind2h' colspan=2 style='text-align:left'>&nbsp;@ height AGL [m]
+            <th>%clouds | low</th>
+            <th>precipi&shy;tation</th>
+            <th>PBL [m]</th>
+        </tr>
+        <script>
+            const descriptions = {
+                "-1":{"day": {"description":"N/A", "image":""},
+                    "night":{"description":"N/A", "image":""}},
+                "0":{"day":{"description":"Sunny", "image":"http://openweathermap.org/img/wn/01d@2x.png"},
+                    "night":{"description":"Clear", "image":"http://openweathermap.org/img/wn/01n@2x.png"}},
+                "1":{"day":{"description":"Mainly Sunny", "image":"http://openweathermap.org/img/wn/01d@2x.png"},
+                    "night":{"description":"Mainly Clear", "image":"http://openweathermap.org/img/wn/01n@2x.png"}},
+                "2":{"day":{"description":"Partly Cloudy", "image":"http://openweathermap.org/img/wn/02d@2x.png"},
+                    "night":{"description":"Partly Cloudy", "image":"http://openweathermap.org/img/wn/02n@2x.png"}},
+                "3":{"day":{"description":"Cloudy", "image":"http://openweathermap.org/img/wn/03d@2x.png"},
+                    "night":{"description":"Cloudy", "image":"http://openweathermap.org/img/wn/03n@2x.png"}},
+                "45":{"day":{"description":"Foggy", "image":"http://openweathermap.org/img/wn/50d@2x.png"},
+                    "night":{"description":"Foggy", "image":"http://openweathermap.org/img/wn/50n@2x.png"}},
+                "48":{"day":{"description":"Rime Fog", "image":"http://openweathermap.org/img/wn/50d@2x.png"},
+                    "night":{"description":"Rime Fog", "image":"http://openweathermap.org/img/wn/50n@2x.png"}},
+                "51":{"day":{"description":"Light Drizzle", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Light Drizzle", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "53":{"day":{"description":"Drizzle", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Drizzle", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "55":{"day":{"description":"Heavy Drizzle", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Heavy Drizzle", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "56":{"day":{"description":"Light Freezing Drizzle", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Light Freezing Drizzle", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "57":{"day":{"description":"Freezing Drizzle", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Freezing Drizzle", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "61":{"day":{"description":"Light Rain", "image":"http://openweathermap.org/img/wn/10d@2x.png"},
+                    "night":{"description":"Light Rain", "image":"http://openweathermap.org/img/wn/10n@2x.png"}},
+                "63":{"day":{"description":"Rain", "image":"http://openweathermap.org/img/wn/10d@2x.png"},
+                    "night":{"description":"Rain", "image":"http://openweathermap.org/img/wn/10n@2x.png"}},
+                "65":{"day":{"description":"Heavy Rain", "image":"http://openweathermap.org/img/wn/10d@2x.png"},
+                    "night":{"description":"Heavy Rain", "image":"http://openweathermap.org/img/wn/10n@2x.png"}},
+                "66":{"day":{"description":"Light Freezing Rain", "image":"http://openweathermap.org/img/wn/10d@2x.png"},
+                    "night":{"description":"Light Freezing Rain", "image":"http://openweathermap.org/img/wn/10n@2x.png"}},
+                "67":{"day":{"description":"Freezing Rain", "image":"http://openweathermap.org/img/wn/10d@2x.png"},
+                    "night":{"description":"Freezing Rain", "image":"http://openweathermap.org/img/wn/10n@2x.png"}},
+                "71":{"day":{"description":"Light Snow", "image":"http://openweathermap.org/img/wn/13d@2x.png"},
+                    "night":{"description":"Light Snow", "image":"http://openweathermap.org/img/wn/13n@2x.png"}},
+                "73":{"day":{"description":"Snow", "image":"http://openweathermap.org/img/wn/13d@2x.png"},
+                    "night":{"description":"Snow", "image":"http://openweathermap.org/img/wn/13n@2x.png"}},
+                "75":{"day":{"description":"Heavy Snow", "image":"http://openweathermap.org/img/wn/13d@2x.png"},
+                    "night":{"description":"Heavy Snow", "image":"http://openweathermap.org/img/wn/13n@2x.png"}},
+                "77":{"day":{"description":"Snow Grains", "image":"http://openweathermap.org/img/wn/13d@2x.png"},
+                    "night":{"description":"Snow Grains", "image":"http://openweathermap.org/img/wn/13n@2x.png"}},
+                "80":{"day":{"description":"Light Showers", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Light Showers", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "81":{"day":{"description":"Showers", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Showers", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "82":{"day":{"description":"Heavy Showers", "image":"http://openweathermap.org/img/wn/09d@2x.png"},
+                    "night":{"description":"Heavy Showers", "image":"http://openweathermap.org/img/wn/09n@2x.png"}},
+                "85":{"day":{"description":"Light Snow Showers", "image":"http://openweathermap.org/img/wn/13d@2x.png"},
+                    "night":{"description":"Light Snow Showers", "image":"http://openweathermap.org/img/wn/13n@2x.png"}},
+                "86":{"day":{"description":"Snow Showers", "image":"http://openweathermap.org/img/wn/13d@2x.png"},
+                    "night":{"description":"Snow Showers", "image":"http://openweathermap.org/img/wn/13n@2x.png"}},
+                "95":{"day":{"description":"Thunderstorm", "image":"http://openweathermap.org/img/wn/11d@2x.png"},
+                    "night":{"description":"Thunderstorm", "image":"http://openweathermap.org/img/wn/11n@2x.png"}},
+                "96":{"day":{"description":"Light Thunderstorms With Hail", "image":"http://openweathermap.org/img/wn/11d@2x.png"},
+                    "night":{"description":"Light Thunderstorms With Hail", "image":"http://openweathermap.org/img/wn/11n@2x.png"}},
+                "99":{"day":{"description":"Thunderstorm With Hail", "image":"http://openweathermap.org/img/wn/11d@2x.png"},
+                    "night":{"description":"Thunderstorm With Hail", "image":"http://openweathermap.org/img/wn/11n@2x.png"}}
+            }
+
+            function stupidConverter(dtStr, utcOffset) {let x34 = new Date(dtStr + 'Z'); return x34.getTime() - 1000 * utcOffset;}
+
+            // pass new coordinates, model, pressure level to getForecast()
+            function changeParams(event) {
+                event.preventDefault();
+                console.log(document.forms.coords.elements.lat.value, document.forms.coords.elements.lon.value);
+                getForecast(document.forms.coords.elements.lat.value, document.forms.coords.elements.lon.value,
+                            document.forms.coords.elements.model.value, document.forms.coords.elements.lev.value,
+                            document.forms.coords.elements.hly.checked);
+            }
+
+            function drawArrow(wind_direction) {
+                let arrow = document.createElementNS("http://www.w3.org/2000/svg", 'svg');
+                arrow.setAttribute('viewBox', "4 4 16 16");
+                let arrow_title = document.createElementNS(arrow.namespaceURI, 'title');
+                arrow_title.textContent = `${wind_direction}°`;
+                let arrow_path = document.createElementNS(arrow.namespaceURI, 'path');
+                arrow_path.setAttribute('d', "M15.707,15.707l-3,3a1,1,0,0,1-1.414,0l-3-3a1,1,0,0,1,1.414-1.414L11,15.586V6a1,1,0,0,1,2,0v9.586l1.293-1.293a1,1,0,0,1,1.414,1.414Z");
+                arrow_path.setAttribute('style', 'fill:black');
+                arrow_path.setAttribute('transform', `rotate(${wind_direction} 12 12)`);
+                arrow.appendChild(arrow_title);
+                arrow.appendChild(arrow_path);
+                return arrow;
+            }
+
+            // get forecast data from api.open-meteo
+            function getForecast(latitude, longitude, model, level, isHourly) {
+                let days = {'gfs_seamless': 15, 'ecmwf_ifs025': 10, 'ecmwf_aifs025': 10, 'icon_seamless': 7, 'ukmo_seamless': 7, 'meteofrance_seamless': 4}[model];
+                const mLevel = {'gfs_seamless': 100, 'ecmwf_ifs025': 100, 'ecmwf_aifs025': 100, 'icon_seamless': 120, 'ukmo_seamless': 10, 'meteofrance_seamless': 100};
+                const pLevels = {'gfs_seamless': [], 'ecmwf_ifs025': [], 'ecmwf_aifs025': [], 'icon_seamless': [], 'ukmo_seamless': [], 'meteofrance_seamless': []};
+                const timeRes = isHourly ? 24 : 8;
+                const params = {
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "forecast_days": days,
+                    "wind_speed_unit": "ms",
+                    "timezone": "auto",
+                    "temporal_resolution": `hourly_${isHourly ? 1 : 3}`,
+                    "hourly": ["temperature_2m", "precipitation", "precipitation_probability", "wind_speed_10m",
+                                "wind_gusts_10m", "wind_direction_10m", `wind_speed_${mLevel[model]}m`, `wind_direction_${mLevel[model]}m`,
+                                `wind_speed_${level}`, `wind_direction_${level}`, `geopotential_height_${level}`,
+                                "cloud_cover", "cloud_cover_low", "weather_code", "boundary_layer_height", "is_day"],
+                    "current": [],
+                    "models": [model]
+                }
+                const url = new URL("https://api.open-meteo.com/v1/forecast");
+                url.search = new URLSearchParams(params).toString().replace(/%2C/g,",");
+
+                fetch(url.href).then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    } else {
+                        console.log(`Cannot open url = ${url.toString()}: ${response.status}`);
+                        return {"hourly":{"time":{}}};
+                    }
+                }).then(result => {
+                    
+                    const n = result.hourly.time.length;
+                    const tzone = document.getElementById('tzone');
+                    tzone.textContent = result.timezone_abbreviation ?? 'GMT';
+                    const mainTable = document.getElementById('mainTable');
+                    const elev = document.getElementById('elev');
+                    elev.setAttribute('value', result.elevation ?? '??');
+                    let tableDate = new Date(0);
+                    let currentTime = new Date(stupidConverter(result.current.time, result.utc_offset_seconds));
+                    dataRows = document.querySelectorAll('tr.dataRow');
+                    dataRows.forEach(element => element.remove());
+                    
+                    for (let i = 0; i < n; i++) {
+
+                        let childRow = document.createElement('tr');
+                        childRow.setAttribute('id', `row${i}`);
+                        childRow.setAttribute('class', 'dataRow');
+
+                        let datetime = new Date(stupidConverter(result.hourly.time[i], result.utc_offset_seconds));
+
+                        let hiddenDateTimeCell = document.createElement('td');
+                        hiddenDateTimeCell.setAttribute('hidden', '');
+                        hiddenDateTimeCell.setAttribute('class', 'hiddendatetime');
+                        hiddenDateTimeCell.textContent = datetime.toISOString();
+                        childRow.appendChild(hiddenDateTimeCell);
+                        
+                        let dateCell = document.createElement('td');
+                        let timeCell = document.createElement('td');
+                        dateCell.setAttribute('class', 'date');
+                        timeCell.setAttribute('class', 'time');
+                        if (tableDate.toLocaleDateString('en-GB', {timeZone: result.timezone, timeZoneName: 'shortOffset'}) != datetime.toLocaleDateString('en-GB', {timeZone: result.timezone, timeZoneName: 'shortOffset'})) {
+                            dateCell.innerHTML = `<b>${datetime.toLocaleDateString([], {weekday: 'short', timeZone: result.timezone}).toUpperCase()}</b><br>${datetime.toLocaleDateString([], {month: 'numeric', day: 'numeric', timeZone: result.timezone})}`;
+                            dateCell.setAttribute('rowspan', `${timeRes}`);
+                            childRow.appendChild(dateCell);
+                            tableDate = datetime;
+                            let emptyRow;
+                            for (let i = 0; i < 2; i++) {
+                                emptyRow = document.createElement('tr');
+                                emptyRow.setAttribute('class', 'dataRow');
+                                mainTable.appendChild(emptyRow);
+                            }
+                            emptyRow.setAttribute('style', 'height: 4ch');
+                        }
+                        timeCell.innerHTML = `${datetime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: result.timezone})}`;
+                        
+                        childRow.appendChild(timeCell);
+
+                        let weatherCodeCell = document.createElement('td');
+                        weatherCodeCell.setAttribute('class', 'weatherCode');
+                        let tmpImg = document.createElement('img');
+                        tmpImg.setAttribute('src', descriptions[result.hourly.weather_code[i] ?? -1][result.hourly.is_day[i]  ? 'day' : 'night']['image']);
+                        tmpImg.setAttribute('alt', descriptions[result.hourly.weather_code[i] ?? -1][result.hourly.is_day[i]  ? 'day' : 'night']['description']);
+                        tmpImg.setAttribute('title', descriptions[result.hourly.weather_code[i] ?? -1][result.hourly.is_day[i]  ? 'day' : 'night']['description']);
+                        weatherCodeCell.appendChild(tmpImg);
+                        childRow.appendChild(weatherCodeCell);
+
+                        let temperatureCell = document.createElement('td');
+                        temperatureCell.setAttribute('class', 'temperature');
+                        let temp = Math.round(result.hourly.temperature_2m[i]);
+                        temperatureCell.textContent = `${(temp>0?'+':'') + temp}`;
+                        childRow.appendChild(temperatureCell);
+                        
+                        let windCell = document.createElement('td');
+                        windCell.setAttribute('class', 'wind1');
+                        windCell.appendChild(drawArrow(result.hourly.wind_direction_10m[i]))
+                        let windText = document.createElement('span');
+                        windText.innerHTML = ` <b>${Math.round(result.hourly.wind_speed_10m[i])}&nbsp;»&nbsp;${Math.round(result.hourly.wind_gusts_10m[i])}</b>`;
+                        windCell.appendChild(windText);
+                        childRow.appendChild(windCell);
+
+                        windCell = document.createElement('td');
+                        windCell.setAttribute('class', 'wind2');
+                        windCell.appendChild(drawArrow(result.hourly[`wind_direction_${mLevel[model]}m`][i]));
+                        windText = document.createElement('span');
+                        windText.textContent = ` ${Math.round(result.hourly[`wind_speed_${mLevel[model]}m`][i])} @${mLevel[model]}`;
+                        windCell.appendChild(windText);
+                        childRow.appendChild(windCell);
+
+                        windCell = document.createElement('td');
+                        windCell.setAttribute('class', 'wind3');
+                        windCell.appendChild(drawArrow(result.hourly[`wind_direction_${level}`][i]));
+                        windText = document.createElement('span');
+                        windText.textContent = ` ${Math.round(result.hourly[`wind_speed_${level}`][i])} @${10 * Math.round((result.hourly[`geopotential_height_${level}`][i] - result.elevation) / 10)}`;
+                        windCell.appendChild(windText);
+                        childRow.appendChild(windCell);
+
+                        let cloudsCell = document.createElement('td');
+                        cloudsCell.setAttribute('class', 'clouds');
+                        cloudsCell.textContent = `${result.hourly.cloud_cover[i]} | ${result.hourly.cloud_cover_low[i]}`;
+                        childRow.appendChild(cloudsCell);
+
+                        let precipitationCell = document.createElement('td');
+                        precipitationCell.setAttribute('class', 'precipitation');
+                        precipitationCell.textContent = `${result.hourly.precipitation[i]} | ${result.hourly.precipitation_probability[i]}%`;
+                        childRow.appendChild(precipitationCell);
+                        
+                        let pblCell = document.createElement('td');
+                        pblCell.setAttribute('class', 'pbl');
+                        pblCell.textContent = result.hourly.boundary_layer_height[i];
+                        childRow.appendChild(pblCell);
+                        // make old forecast gray
+                        if (datetime < currentTime) {
+                            oldData = childRow.querySelectorAll('td:not(.date)');
+                            oldData.forEach(element => element.setAttribute('style', 'color: darkgray;'));
+                            oldImages = childRow.querySelectorAll('img, svg');
+                            oldImages.forEach(element => element.setAttribute('style', 'filter: contrast(25%) brightness(150%)'));
+                        }
+                        mainTable.appendChild(childRow);
+                    }
+
+                });
+            }
+
+            let model = document.getElementById('model').value;
+            let latitude = document.getElementById('lat').value;
+            let longitude = document.getElementById('lon').value;
+            let level = document.getElementById('lev').value;
+
+            getForecast(latitude, longitude, model, level, false);
+        </script>
+    </tbody>
+</table>
+</div>
+</main>
+<footer>
+<p align=center>🄯 copyleft</p>
+</footer>
+</body>
+</html>
