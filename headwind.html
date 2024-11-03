@@ -5,21 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>headwind</title>
     <style>
-        header {background-color: #ccffee; padding: 0.5rem;}
-        th,td {text-align: right; padding: 0.25ch;}
+        header {background-color: #ccffee; padding: 1rem;}
+        th,td {text-align: right; padding: 0.2ch;}
         tr:nth-child(odd) {background-color: whitesmoke;}
-        body {font-family: "Open Sans", Helvetica, Verdana, Arial, sans-serif;}
-        img {height: 5ch; object-fit: cover; vertical-align: middle; margin: -20%; filter: brightness(75%) contrast(150%);}
-        svg {height: 2.2ch; vertical-align: bottom;}
+        tr:nth-child(odd) .oldData {background-color: #fafafa;}
+        body {font-family: Helvetica, Arial, sans-serif;}
+        img {height: 5ch; object-fit: cover; vertical-align: middle; margin: -15%; filter: brightness(75%) contrast(150%);}
+        svg {height: 2.5ch; vertical-align: middle;}
         table {table-layout: auto; max-width: 100ch; border-collapse: collapse; margin-top: 3rem;}
         #coords span {display: inline-block;}
         .date {text-align: right; vertical-align: top; background-color: white; padding-right: 1ch; font-size: 1.2rem}
-        .weatherCode {text-align: center;}
         .tableHeader {font-size: 0.9rem;}
-        .tableHeader th {padding: 0.3rem;}
-        @media (max-width: 799px) {
-            .wind2, .wind3, .wind2h {display: none;}
+        .tableHeader th {padding: 0.5em 0.2em;}
+        .oldData {color: darkgray;}
+        .oldData img, .oldData svg {filter: contrast(25%) brightness(150%);}
+        .cloudsLow, .precipitationProb, .wind1g, .wind2, .wind3 {text-align: left;}
+        .weekend {color: red;}
+        .centered {text-align: center;}
+        @media (max-width: 749px) {
+            .wind2, .wind3, .cloudsLow, .precipitationProb {width: 0px; padding: 0px; margin: 0px}
+            .mobileHide {display: none;}
             .date {padding-right: 0.5ch; font-size: 1rem;}
+            input, textarea, select, button {font-family:inherit;}
+            .wind1, 
+        }
+        @media (max-width: 549px) {
+            body {font-family: "Helvetica Narrow", "Arial Narrow", Helvetica, Arial, sans-serif;}
         }
     </style>
 </head>
@@ -62,27 +73,45 @@
 <div align='center' max-width='device-width'>
 <table>
     <colgroup>
-        <col width="1%">
-        <col width="2%">
-        <col width="2%">
-        <col width="1%">
-        <col width="3.5%">
+        <col width="5%">
+        <col width="6%">
         <col width="4%">
         <col width="4%">
-        <col width="3%">
-        <col width="2.5%">
-        <col width="2%">
+        <col class="wind1" width="9%">
+        <col class="wind1g" width="8%">
+        <col class="wind2" width="8%">
+        <col class="wind3" width="8%">
+        <col width="6%">
+        <col class="cloudsLow" width="6%">
+        <col width="6%">
+        <col class="precipitationProb" width="6%">
+        <col width="8%">
     </colgroup>
     <tbody id="mainTable">
         <tr class="tableHeader">
             <th hidden>date&time (ISO)</th>
-            <th colspan=2 style='text-align: right'>date ┃ time (<span id='tzone'>GMT</span>)&nbsp;</th>
-            <th colspan=2>weather ┃ t&nbsp;[°C]</th>
-            <th style='text-align:right'>wind [m/s]</th>
-            <th class='wind2h' colspan=2 style='text-align:left'>&nbsp;@ height AGL [m]
-            <th>%clouds | low</th>
-            <th>precipi&shy;tation</th>
-            <th>PBL [m]</th>
+            <th class="date"></th>
+            <th>time</th>
+            <th colspan=2 style="text-align: right;">t [°C]</th>
+            <th colspan=4 class="centered">WIND [<nobr>m/s</nobr>]</th>
+            <th colspan=2 class="centered">%clo&shy;uds</th>
+            <th colspan=2 class="centered">precipi&shy;tation</th>
+            <th class="pbl">PBL [m]</th>
+        </tr>
+        <tr></tr>
+        <tr class="tableHeader mobileHide">
+            <td class="date"></td>
+            <td>(<span id='tzone'>GMT</span>)</td>
+            <td colspan=2></td>
+            <td id="gnd">10 m</td>
+            <td class="wind1g"> | gusts</td>
+            <td id="h100m" class="wind2">100 m</td>
+            <td id="p925mb" class="wind3">~ 600 m</td>
+            <td>total</td>
+            <td class="cloudsLow"> | low</td>
+            <td class="precipitation" id="precip">[mm]</td>
+            <td class="precipitationProb" title="probability"> | prob.</td>
+            <td>(GFS)</td>
         </tr>
         <script>
             const descriptions = {
@@ -174,9 +203,14 @@
             // get forecast data from api.open-meteo
             function getForecast(latitude, longitude, model, level, isHourly) {
                 let days = {'gfs_seamless': 15, 'ecmwf_ifs025': 10, 'ecmwf_aifs025': 10, 'icon_seamless': 7, 'ukmo_seamless': 7, 'meteofrance_seamless': 4}[model];
-                const mLevel = {'gfs_seamless': 100, 'ecmwf_ifs025': 100, 'ecmwf_aifs025': 100, 'icon_seamless': 120, 'ukmo_seamless': 10, 'meteofrance_seamless': 100};
-                const pLevels = {'gfs_seamless': [], 'ecmwf_ifs025': [], 'ecmwf_aifs025': [], 'icon_seamless': [], 'ukmo_seamless': [], 'meteofrance_seamless': []};
-                const timeRes = isHourly ? 24 : 8;
+                const mLevel = {'gfs_seamless': 100, 'ecmwf_ifs025': 100, 'ecmwf_aifs025': 10, 'icon_seamless': 120, 'ukmo_seamless': 10, 'meteofrance_seamless': 100};
+                const pLevels = {'gfs_seamless': ["950hPa", "925hPa", "900hPa", "850hPa", "800hPa"],
+                                'ecmwf_ifs025': ["925hPa", "850hPa"], 'ecmwf_aifs025': ["925hPa", "850hPa"],
+                                'icon_seamless': ["950hPa", "925hPa", "900hPa", "850hPa", "800hPa"],
+                                'ukmo_seamless': ["950hPa", "925hPa", "900hPa", "850hPa", "800hPa"],
+                                'meteofrance_seamless': ["950hPa", "925hPa", "900hPa", "850hPa", "800hPa"]};
+                const approxHgts = {"950hPa": 500, "925hPa": 750, "900hPa": 1000, "850hPa": 1500, "800hPa": 2000}
+                const timeResol = isHourly ? 24 : 8;
                 const params = {
                     "latitude": latitude,
                     "longitude": longitude,
@@ -212,8 +246,12 @@
                     let tableDate = new Date(0);
                     let currentTime = new Date(stupidConverter(result.current.time, result.utc_offset_seconds));
                     dataRows = document.querySelectorAll('tr.dataRow');
-                    dataRows.forEach(element => element.remove());
-                    
+                    dataRows.forEach(element => element.remove()); // delete all rows in the table except header
+                    document.getElementById('h100m').textContent = `${mLevel[model]} m`;
+                    document.getElementById('p925mb').textContent = `~ ${50 * Math.round((approxHgts[level] - result.elevation) / 50)} m`;
+                    document.getElementById('p925mb').setAttribute('title', level);
+                    document.getElementById('precip').setAttribute('title', `mm / ${isHourly ? 1 : 3}h`);
+
                     for (let i = 0; i < n; i++) {
 
                         let childRow = document.createElement('tr');
@@ -232,9 +270,11 @@
                         let timeCell = document.createElement('td');
                         dateCell.setAttribute('class', 'date');
                         timeCell.setAttribute('class', 'time');
+                        // new date cell for a new date:
                         if (tableDate.toLocaleDateString('en-GB', {timeZone: result.timezone, timeZoneName: 'shortOffset'}) != datetime.toLocaleDateString('en-GB', {timeZone: result.timezone, timeZoneName: 'shortOffset'})) {
-                            dateCell.innerHTML = `<b>${datetime.toLocaleDateString([], {weekday: 'short', timeZone: result.timezone}).toUpperCase()}</b><br>${datetime.toLocaleDateString([], {month: 'numeric', day: 'numeric', timeZone: result.timezone})}`;
-                            dateCell.setAttribute('rowspan', `${timeRes}`);
+                            dateCell.innerHTML = `<big>${datetime.toLocaleDateString([], {weekday: 'short', timeZone: result.timezone}).toUpperCase()}</big><br>${datetime.toLocaleDateString([], {month: 'numeric', day: 'numeric', timeZone: result.timezone})}`;
+                            dateCell.setAttribute('rowspan', `${timeResol}`);
+                            if ([0, 6].includes(datetime.getDay())) {dateCell.classList.add('weekend');}
                             childRow.appendChild(dateCell);
                             tableDate = datetime;
                             let emptyRow;
@@ -243,9 +283,9 @@
                                 emptyRow.setAttribute('class', 'dataRow');
                                 mainTable.appendChild(emptyRow);
                             }
-                            emptyRow.setAttribute('style', 'height: 4ch');
+                            emptyRow.setAttribute('style', 'height: 3rem');
                         }
-                        timeCell.innerHTML = `${datetime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: result.timezone})}`;
+                        timeCell.innerHTML = `${datetime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', timeZone: result.timezone})}`;
                         
                         childRow.appendChild(timeCell);
 
@@ -268,35 +308,58 @@
                         windCell.setAttribute('class', 'wind1');
                         windCell.appendChild(drawArrow(result.hourly.wind_direction_10m[i]))
                         let windText = document.createElement('span');
-                        windText.innerHTML = ` <b>${Math.round(result.hourly.wind_speed_10m[i])}&nbsp;»&nbsp;${Math.round(result.hourly.wind_gusts_10m[i])}</b>`;
+                        windText.innerHTML = ` <b>${Math.round(result.hourly.wind_speed_10m[i])}</b>`;
                         windCell.appendChild(windText);
+                        childRow.appendChild(windCell);
+
+                        windCell = document.createElement('td');
+                        windCell.setAttribute('class', 'wind1g');
+                        windCell.textContent = ` ⇒ ${Math.round(result.hourly.wind_gusts_10m[i])}`;
                         childRow.appendChild(windCell);
 
                         windCell = document.createElement('td');
                         windCell.setAttribute('class', 'wind2');
-                        windCell.appendChild(drawArrow(result.hourly[`wind_direction_${mLevel[model]}m`][i]));
+                        let windSpan = document.createElement('span');
+                        windSpan.setAttribute('class', 'mobileHide');
+                        windSpan.appendChild(drawArrow(result.hourly[`wind_direction_${mLevel[model]}m`][i]));
                         windText = document.createElement('span');
-                        windText.textContent = ` ${Math.round(result.hourly[`wind_speed_${mLevel[model]}m`][i])} @${mLevel[model]}`;
-                        windCell.appendChild(windText);
+                        windText.textContent = ` ${Math.round(result.hourly[`wind_speed_${mLevel[model]}m`][i])}`;
+                        windText.setAttribute('title', `at ${mLevel[model]}m`);
+                        windSpan.appendChild(windText);
+                        windCell.appendChild(windSpan);
                         childRow.appendChild(windCell);
 
                         windCell = document.createElement('td');
                         windCell.setAttribute('class', 'wind3');
-                        windCell.appendChild(drawArrow(result.hourly[`wind_direction_${level}`][i]));
+                        windSpan = document.createElement('span');
+                        windSpan.setAttribute('class', 'mobileHide');
+                        windSpan.appendChild(drawArrow(result.hourly[`wind_direction_${level}`][i]));
                         windText = document.createElement('span');
-                        windText.textContent = ` ${Math.round(result.hourly[`wind_speed_${level}`][i])} @${10 * Math.round((result.hourly[`geopotential_height_${level}`][i] - result.elevation) / 10)}`;
-                        windCell.appendChild(windText);
+                        windText.textContent = ` ${Math.round(result.hourly[`wind_speed_${level}`][i])}`;
+                        windText.setAttribute('title', `at ${10 * Math.round((result.hourly[`geopotential_height_${level}`][i] - result.elevation) / 10)}m`);
+                        windSpan.appendChild(windText);
+                        windCell.appendChild(windSpan);
                         childRow.appendChild(windCell);
 
                         let cloudsCell = document.createElement('td');
                         cloudsCell.setAttribute('class', 'clouds');
-                        cloudsCell.textContent = `${result.hourly.cloud_cover[i]} | ${result.hourly.cloud_cover_low[i]}`;
+                        cloudsCell.textContent = result.hourly.cloud_cover[i];
                         childRow.appendChild(cloudsCell);
+
+                        let cloudsLowCell = document.createElement('td');
+                        cloudsLowCell.className = 'cloudsLow';
+                        cloudsLowCell.innerHTML = `<span class="mobileHide"> | ${result.hourly.cloud_cover_low[i]}</span>`;
+                        childRow.appendChild(cloudsLowCell);
 
                         let precipitationCell = document.createElement('td');
                         precipitationCell.setAttribute('class', 'precipitation');
-                        precipitationCell.textContent = `${result.hourly.precipitation[i]} | ${result.hourly.precipitation_probability[i]}%`;
+                        precipitationCell.innerHTML = `<span title="mm / ${isHourly ? 1 : 3}h">${result.hourly.precipitation[i]}</span>`;
                         childRow.appendChild(precipitationCell);
+
+                        let precipitationProbCell = document.createElement('td');
+                        precipitationProbCell.className = 'precipitationProb';
+                        precipitationProbCell.innerHTML = `<span class="mobileHide" title="probability"> | ${result.hourly.precipitation_probability[i]}%</span>`;
+                        childRow.appendChild(precipitationProbCell);
                         
                         let pblCell = document.createElement('td');
                         pblCell.setAttribute('class', 'pbl');
@@ -305,9 +368,7 @@
                         // make old forecast gray
                         if (datetime < currentTime) {
                             oldData = childRow.querySelectorAll('td:not(.date)');
-                            oldData.forEach(element => element.setAttribute('style', 'color: darkgray;'));
-                            oldImages = childRow.querySelectorAll('img, svg');
-                            oldImages.forEach(element => element.setAttribute('style', 'filter: contrast(25%) brightness(150%)'));
+                            oldData.forEach(element => element.classList.add('oldData'));
                         }
                         mainTable.appendChild(childRow);
                     }
